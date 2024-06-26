@@ -10,7 +10,7 @@ events:
   - name: delete 
     entrypoint: null
     command: ["delete"]
-ressources:
+resources:
   mCPU: 500
   ramMib: 512
 variables:
