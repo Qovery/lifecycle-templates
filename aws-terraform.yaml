@@ -1,5 +1,7 @@
 id: 5f9c2fcd-86d4-42c9-9a5a-2f4126f39b06
 name: terraform
+description: |-
+  Allow to manage terraform
 source_url: "https://github.com/Qovery/lifecycle-templates/blob/main/aws-terraform.yaml"
 cloud_provider:
   name: AWS
