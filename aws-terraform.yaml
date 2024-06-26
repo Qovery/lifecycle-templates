@@ -13,8 +13,8 @@ events:
     entrypoint: null
     command: ["delete"]
 resources:
-  mCPU: 500
-  ramMib: 512
+  cpu_milli: 500
+  ram_mib: 512
 variables:
   - name: AWS_DEFAULT_REGION
     is_secret: false
