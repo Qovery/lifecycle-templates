@@ -2,7 +2,7 @@ id: 5f9c2fcd-86d4-42c9-9a5a-2f4126f39b06
 name: cloudformation
 description: |-
   Allow to manage Cloudformation
-source_url: "https://github.com/Qovery/lifecycle-templates/blob/main/cloudformation.yaml"
+source_url: "https://github.com/Qovery/lifecycle-templates/blob/main/aws-cloudformation.yaml"
 cloud_provider:
   name: AWS
 events: 
