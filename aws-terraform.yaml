@@ -38,6 +38,7 @@ variables:
 dockerfile: |-
   FROM hashicorp/terraform:1.8.5
 
+  # downloading dependencies and initializing working dir
   RUN <<EOF
   set -e
   apk update
@@ -49,6 +50,12 @@ dockerfile: |-
 
   WORKDIR /data
   USER app
+
+  # Create the entrypoint script with the commands to be run on the environment:
+  # - start --> run "terraform apply" + use "terraform output" to generate the output to be fetched by Qovery and injected later as environment variable for the other services within the same environment
+  # - stop --> nothing
+  # - delete --> run "terraform destroy"
+  # other commands are available and can be customized in this Dockerfile
 
   RUN cat <<EOF > entrypoint.sh
   #!/bin/sh
@@ -104,6 +111,7 @@ dockerfile: |-
 
   COPY --chown=app:app . terraform
 
+  # initialize terraform without the backend
   RUN <<EOF
   set -e
   chmod +x entrypoint.sh
@@ -111,12 +119,11 @@ dockerfile: |-
   terraform init -backend=false
   EOF
 
+  # These env vars shall be set as environment variables within the Qovery console
   ENV AWS_DEFAULT_REGION=must-be-set-as-env-var
   ENV AWS_ACCESS_KEY_ID=must-be-set-as-env-var
   ENV AWS_SECRET_ACCESS_KEY=must-be-set-as-env-var
   ENV TF_VARS=must-be-set-as-env-var-file
-  #ENV JOB_OUPUT=/mnt/data/terraform.tfvars
-
 
   ENTRYPOINT ["/usr/bin/dumb-init", "-v", "--", "/data/entrypoint.sh"]
   CMD ["start"]

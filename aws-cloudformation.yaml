@@ -34,14 +34,20 @@ variables:
     description: "The name of the Cloudformation template to deploy"
   - name: JOB_INPUT
     is_secret: true
-    description: "The terraform variable that will be injected"
+    description: "The Cloudformation template input necessary for its execution"
     file: 
-      path: "/data/terraform/terraform.tfvars"
+      path: "/data/cloudformation/input.json"
     default: |-
-      bucket_name="qovery-{{QOVERY_JOB_NAME}}"
+      {
+        "Parameters": {
+          "Param1": "value",
+          "Param2": "value"
+        }
+      }
 dockerfile: |-
   FROM alpine:3.20.0
-
+  
+  # downloading dependencies and initializing working dir
   RUN <<EOF
   set -e
   apk update
@@ -55,6 +61,13 @@ dockerfile: |-
 
   WORKDIR /data
   USER app
+
+  # Create the entrypoint script with the commands to be run on the environment:
+  # - start --> run "cloudformation deploy" + use "cloudformation describe-stacks" to generate the output to be fetched by Qovery and injected later as an environment variable for the other services within the same environment
+  # - stop --> nothing
+  # - delete --> run "cloudformation delete-stack"
+  # other commands are available and can be customized in this Dockerfile
+  # the stack name is created based on the QOVERY_JOB_ID environment variable
 
   RUN cat <<EOF > entrypoint.sh
   #!/bin/sh
@@ -119,8 +132,9 @@ dockerfile: |-
   cd cloudformation
   EOF
 
+  # These env vars shall be set as environment variables within the Qovery console
   ENV CF_TEMPLATE_NAME=must-be-set-as-env-var
-  ENV AWS_REGION = must-be-set-as-env-var
+  ENV AWS_DEFAULT_REGION = must-be-set-as-env-var
   ENV AWS_SECRET_ACCESS_KEY = must-be-set-as-env-var
   ENV AWS_ACCESS_KEY_ID = must-be-set-as-env-var
 
