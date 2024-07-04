@@ -34,11 +34,16 @@ variables:
     description: "The name of the Cloudformation template to deploy"
   - name: JOB_INPUT
     is_secret: true
-    description: "The terraform variable that will be injected"
+    description: "The Cloudformation template input necessary for its execution"
     file: 
-      path: "/data/terraform/terraform.tfvars"
+      path: "/data/cloudformation/input.json"
     default: |-
-      bucket_name="qovery-{{QOVERY_JOB_NAME}}"
+      {
+        "Parameters": {
+          "Param1": "value",
+          "Param2": "value"
+        }
+      }
 dockerfile: |-
   FROM alpine:3.20.0
   
