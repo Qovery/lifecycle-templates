@@ -15,19 +15,8 @@ events:
 resources:
   cpu_milli: 500
   ram_mib: 512
+max_duration_min: 30
 variables:
-  - name: AWS_DEFAULT_REGION
-    is_secret: false
-    default: "us-east2"
-    description: "The AWS region you want to target"
-  - name: AWS_ACCESS_KEY_ID
-    is_secret: true
-    default: ""
-    description: "Your AWS access key"
-  - name: AWS_SECRET_ACCESS_KEY
-    is_secret: true
-    default: ""
-    description: "your aws access secret key"
   - name: JOB_INPUT
     is_secret: true
     description: "The terraform variable that will be injected"
@@ -69,7 +58,17 @@ dockerfile: |-
   set -ex
 
   cd terraform
+  
+  ############################################################
+  # Configure your own backend.tf there
+  echo '
+  terraform { 
+    backend "kubernetes" {  
+      in_cluster_config = true  
+    } 
+  }' > backend.tf
   terraform init -backend-config="secret_suffix=qovery-\${QOVERY_JOB_ID}" -backend-config="namespace=\${QOVERY_KUBERNETES_NAMESPACE_NAME}"
+  ############################################################
 
   case "\$CMD" in
   start)
