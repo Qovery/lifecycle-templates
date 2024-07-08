@@ -49,11 +49,6 @@ dockerfile: |-
   RUN cat <<EOF > entrypoint.sh
   #!/bin/sh
 
-  if [ "\$JOB_INPUT" != '' ]
-  then
-    TF_VARS="\$JOB_INPUT"
-  fi
-
   CMD=\$1; shift
   set -ex
 
@@ -73,7 +68,7 @@ dockerfile: |-
   case "\$CMD" in
   start)
     echo 'start command invoked'
-    terraform plan -input=false -out=tf.plan -var-file=\$TF_VARS
+    terraform plan -input=false -out=tf.plan -var-file=\$JOB_INPUT
     terraform apply -input=false -auto-approve tf.plan
     terraform output -json > /qovery-output/qovery-output.json
     ;;
@@ -85,7 +80,7 @@ dockerfile: |-
 
   delete)
     echo 'delete command invoked'
-    terraform plan -destroy -out=tf.plan -input=false -var-file=\$TF_VARS
+    terraform plan -destroy -out=tf.plan -input=false -var-file=\$JOB_INPUT
     terraform apply -destroy -auto-approve -input=false tf.plan
     ;;
 
@@ -120,10 +115,8 @@ dockerfile: |-
   EOF
 
   # These env vars shall be set as environment variables within the Qovery console
-  ENV AWS_DEFAULT_REGION=must-be-set-as-env-var
-  ENV AWS_ACCESS_KEY_ID=must-be-set-as-env-var
-  ENV AWS_SECRET_ACCESS_KEY=must-be-set-as-env-var
-  ENV TF_VARS=must-be-set-as-env-var-file
+  # JOB_INPUT should contains a terraform vars file to customize your job
+  ENV JOB_INPUT=must-be-set-as-env-var-file
 
   ENTRYPOINT ["/usr/bin/dumb-init", "-v", "--", "/data/entrypoint.sh"]
   CMD ["start"]
