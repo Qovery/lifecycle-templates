@@ -135,9 +135,9 @@ dockerfile: |-
 
   # These env vars shall be set as environment variables within the Qovery console
   ENV CF_TEMPLATE_NAME=must-be-set-as-env-var
-  ENV AWS_DEFAULT_REGION = must-be-set-as-env-var
-  ENV AWS_SECRET_ACCESS_KEY = must-be-set-as-env-var
-  ENV AWS_ACCESS_KEY_ID = must-be-set-as-env-var
+  ENV AWS_DEFAULT_REGION=must-be-set-as-env-var
+  ENV AWS_SECRET_ACCESS_KEY=must-be-set-as-env-var
+  ENV AWS_ACCESS_KEY_ID=must-be-set-as-env-var
 
 
   ENTRYPOINT ["/usr/bin/dumb-init", "-v", "--", "/data/entrypoint.sh"]
