@@ -33,7 +33,7 @@ variables:
     is_secret: false
     default: ""
     description: "The name of the Cloudformation template to deploy"
-  - name: JOB_INPUT
+  - name: CF_TEMPLATE_INPUT
     is_secret: true
     description: "The Cloudformation template input necessary for its execution"
     file: 
@@ -73,9 +73,9 @@ dockerfile: |-
   RUN cat <<EOF > entrypoint.sh
   #!/bin/sh
 
-  if [ "\$JOB_INPUT" != '' ]
+  if [ "\$CF_TEMPLATE_INPUT" != '' ]
   then
-    PARAMETERS="file://\$JOB_INPUT"
+    PARAMETERS="file://\$CF_TEMPLATE_INPUT"
   fi
 
   CMD=\$1; shift
