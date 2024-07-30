@@ -34,7 +34,7 @@ variables:
     default: ""
     description: "The name of the Cloudformation template to deploy"
   - name: CF_TEMPLATE_INPUT
-    is_secret: true
+    is_secret: false
     description: "The Cloudformation template input necessary for its execution"
     file: 
       path: "/data/cloudformation/input.json"
@@ -47,7 +47,7 @@ variables:
       }
 dockerfile: |-
   FROM alpine:3.20.0
-  
+
   # downloading dependencies and initializing working dir
   RUN <<EOF
   set -e
@@ -59,86 +59,110 @@ dockerfile: |-
   mkdir /data
   chown -R app:app /data
   EOF
-
+  
   WORKDIR /data
   USER app
-
+  
   # Create the entrypoint script with the commands to be run on the environment:
   # - start --> run "cloudformation deploy" + use "cloudformation describe-stacks" to generate the output to be fetched by Qovery and injected later as an environment variable for the other services within the same environment
   # - stop --> nothing
   # - delete --> run "cloudformation delete-stack"
   # other commands are available and can be customized in this Dockerfile
   # the stack name is created based on the QOVERY_JOB_ID environment variable
-
+  
   RUN cat <<EOF > entrypoint.sh
   #!/bin/sh
-
+  
   if [ "\$CF_TEMPLATE_INPUT" != '' ]
   then
     PARAMETERS="file://\$CF_TEMPLATE_INPUT"
   fi
-
+  
   CMD=\$1; shift
-  set -ex
-
+  set -e
+  
   cd cloudformation
-
-  STACK_NAME="qovery-stack-\${QOVERY_JOB_ID%%-*}"
-
+  
+  # predefined stack name to be used during the cloudformation command
+  qovery_short_job_id=\${QOVERY_JOB_ID%%-*}
+  STACK_NAME="qovery-job-\$qovery_short_job_id"
+  
   case "\$CMD" in
   start)
     echo 'start command invoked'
-    aws cloudformation deploy --stack-name \$STACK_NAME --template \$CF_TEMPLATE_NAME --parameter-overrides \$PARAMETERS 
-    echo 'generating stack output - injecting it as Qovery environment variable for downstream usage'
+    echo "Cloudformation stack name: \$STACK_NAME"
+    # Check if the stack exists
+    echo 'Checking if the stack already exists...'
+    STACK_STATUS=\$(aws cloudformation list-stacks --query "StackSummaries[?StackName=='\$STACK_NAME'].[StackStatus]" --output text)
+    case "\$STACK_STATUS" in
+    ROLLBACK_COMPLETE)
+      # if the stack is in rollback_complete, it needs to be deleted first before re-creating it
+      echo 'Stack exists and is in ROLLBACK_COMPLETE. Deleting the stack...'
+      # deleting and waiting for the delete to be completed
+      aws cloudformation delete-stack --stack-name \$STACK_NAME
+      aws cloudformation wait stack-delete-complete --stack-name \$STACK_NAME
+      echo 'Stack deletion completed.'
+      ;;
+    DELETE_COMPLETE)
+      # the stack was deleted once, we can now proceed re-creating it
+      echo 'Stack has been previously deleted. Re-creating it.'
+      ;;
+    *)
+      ;;
+    esac
+  
+    echo 'Deploying/Updating the Cloudformation stack...'
+    clean_job_name=\$(echo "\$QOVERY_JOB_NAME" | tr -d ' ' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g')
+    # deploy the stack and add a few tags based on the job id and job name
+    aws cloudformation deploy --stack-name \$STACK_NAME --template \$CF_TEMPLATE_NAME --parameter-overrides \$PARAMETERS --tags QoveryJobId=\$qovery_short_job_id QoveryJobName=\$clean_job_name
+    echo 'Retrieving the stack output and injecting it as Qovery environment variables for downstream usage.'
     aws cloudformation describe-stacks --stack-name \$STACK_NAME --output json --query ""Stacks[0].Outputs"" > /data/output.json
-    jq -n '[inputs[] | { (.OutputKey): { "value": .OutputValue, "type" : "string", "sensitive": true } }] | add' /data/output.json > /qovery-output/qovery-output.json
+    # writing the output in the Qovery expected format (Terraform output format). The output file bill be fetched by Qovery and injected as environment variable for the other services
+    jq -n '[inputs[] | { (.OutputKey): { "value": .OutputValue, "sensitive": true } }] | add' /data/output.json > /qovery-output/qovery-output.json
     ;;
-
+    
   stop)
     echo 'stop command invoked'
     exit 0
     ;;
-
+  
   delete)
     echo 'delete command invoked'
     aws cloudformation delete-stack --stack-name \$STACK_NAME
     aws cloudformation wait stack-delete-complete --stack-name \$STACK_NAME
     ;;
-
+  
   raw)
     echo 'raw command invoked'
     aws cloudformation "\$1" "\$2" "\$3" "\$4" "\$5" "\$6" "\$7" "\$8" "\$9"
     ;;
-
+  
   debug)
     echo 'debug command invoked. sleeping for 9999999sec'
     echo 'Use remote shell to connect and execute commands'
     sleep 9999999999
     exit 1
     ;;
-
+  
   *)
     echo "Command not handled by entrypoint.sh: '\$CMD'"
     exit 1
     ;;
   esac
-
+  
   EOF
-
+  
   COPY --chown=app:app . cloudformation
-
+  
   RUN <<EOF
   set -e
   chmod +x entrypoint.sh
   cd cloudformation
   EOF
-
+  
   # These env vars shall be set as environment variables within the Qovery console
   ENV CF_TEMPLATE_NAME=must-be-set-as-env-var
-  ENV AWS_DEFAULT_REGION=must-be-set-as-env-var
-  ENV AWS_SECRET_ACCESS_KEY=must-be-set-as-env-var
-  ENV AWS_ACCESS_KEY_ID=must-be-set-as-env-var
-
-
+  
+  
   ENTRYPOINT ["/usr/bin/dumb-init", "-v", "--", "/data/entrypoint.sh"]
   CMD ["start"]
