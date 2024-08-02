@@ -25,8 +25,16 @@ variables:
     default: |-
       bucket_name="qovery-{{QOVERY_JOB_NAME}}"
 dockerfile: |-
+  # The following Dockerfile has been designed to package and run your Terraform manifest with the following constraints:
+  #   - TF version 1.8.5
+  #   - use Kubernetes as backend
+  #   - cloud provider agnostic: you will have to properly configure the authentication to manage your resources
+  #   - we expect the TF_VARs to be declared within an environment variable named "JOB_INPUT" (of type file)
+  # All the points above can be customized in the corresponding line within this Dockerfile 
+  
+  # you can change the TF version here
   FROM hashicorp/terraform:1.8.5
-
+  
   # downloading dependencies and initializing working dir
   RUN <<EOF
   set -e
@@ -36,76 +44,92 @@ dockerfile: |-
   mkdir /data
   chown -R app:app /data
   EOF
-
+  
   WORKDIR /data
   USER app
-
-  # Create the entrypoint script with the commands to be run on the environment:
+  
+  # We create here an entrypoint script that will be executed during the run phase. 
+  # A different command is defined to manage the lifecycle of your resources:
   # - start --> run "terraform apply" + use "terraform output" to generate the output to be fetched by Qovery and injected later as environment variable for the other services within the same environment
-  # - stop --> nothing
+  # - stop --> nothing, customize it based on your needs
   # - delete --> run "terraform destroy"
   # other commands are available and can be customized in this Dockerfile
-
+  # these commands can be assigned as CMD ARGS to one of the Actions/Triggers of your lifecycle job.
   RUN cat <<EOF > entrypoint.sh
   #!/bin/sh
-
+  
   CMD=\$1; shift
-  set -ex
-
+  set -e
+  
   cd terraform
   
   ############################################################
-  # Configure your own backend.tf there
+  #                BACKEND CONFIGURATION
+  ############################################################
+  # We provide Kubernetes as default backend for your Terraform provider
+  # If you already have your own backend definition, remove the line below
   echo '
   terraform { 
-    backend "kubernetes" {  
+  backend "kubernetes" {  
       in_cluster_config = true  
-    } 
+  } 
   }' > backend.tf
+  
+  # This is the TF init command dedicated to the Kubernetes backend that we provide by default. Change it based on your own backend type, see the examples below.
   terraform init -backend-config="secret_suffix=qovery-\${QOVERY_JOB_ID}" -backend-config="namespace=\${QOVERY_KUBERNETES_NAMESPACE_NAME}"
+  
+  # example of initialization with other backend types
+  # S3:  terraform init -backend-config="key=qovery-\${QOVERY_JOB_ID}" -backend-config="bucket=${TERRAFORM_BACKEND_BUCKET}" -backend-config="region=${AWS_REGION}"
   ############################################################
-
+  
   case "\$CMD" in
   start)
-    echo 'start command invoked'
-    terraform plan -input=false -out=tf.plan -var-file=\$JOB_INPUT
-    terraform apply -input=false -auto-approve tf.plan
-    terraform output -json > /qovery-output/qovery-output.json
-    ;;
-
+  # This is the command to manage the creation and update of a resource
+  echo 'start command invoked'
+  echo 'Running Terraform PLAN'
+  terraform plan -input=false -out=tf.plan -var-file=\$JOB_INPUT
+  echo 'Running Terraform APPLY with auto-approve'
+  terraform apply -input=false -auto-approve tf.plan
+  echo 'Writing the TF output and injecting it as Qovery environment variables for downstream usage.'
+  # The TF output is written in a specific file which is automatically retrieved by Qovery and injected as environment variable which can be used by any service within the same environment to access the resource.
+  terraform output -json > /qovery-output/qovery-output.json
+  ;;
+  
   stop)
-    echo 'stop command invoked'
-    exit 0
-    ;;
-
+  echo 'stop command invoked'
+  exit 0
+  ;;
+  
   delete)
-    echo 'delete command invoked'
-    terraform plan -destroy -out=tf.plan -input=false -var-file=\$JOB_INPUT
-    terraform apply -destroy -auto-approve -input=false tf.plan
-    ;;
-
+  echo 'delete command invoked'
+  echo 'Running Terraform PLAN'
+  terraform plan -destroy -out=tf.plan -input=false -var-file=\$JOB_INPUT
+  echo 'Running Terraform DESTROY with auto-approve'
+  terraform apply -destroy -auto-approve -input=false tf.plan
+  ;;
+  
   raw)
-    echo 'raw command invoked'
-    terraform "\$1" "\$2" "\$3" "\$4" "\$5" "\$6" "\$7" "\$8" "\$9"
-    ;;
-
+  echo 'raw command invoked'
+  terraform "\$1" "\$2" "\$3" "\$4" "\$5" "\$6" "\$7" "\$8" "\$9"
+  ;;
+  
   debug)
-    echo 'debug command invoked. sleeping for 9999999sec'
-    echo 'Use remote shell to connect and execute commands'
-    sleep 9999999999
-    exit 1
-    ;;
-
+  echo 'debug command invoked. sleeping for 9999999sec'
+  echo 'Use remote shell to connect and execute commands'
+  sleep 9999999999
+  exit 1
+  ;;
+  
   *)
-    echo "Command not handled by entrypoint.sh: '\$CMD'"
-    exit 1
-    ;;
+  echo "Command not handled by entrypoint.sh: '\$CMD'"
+  exit 1
+  ;;
   esac
-
+  
   EOF
-
+  
   COPY --chown=app:app . terraform
-
+  
   # initialize terraform without the backend
   RUN <<EOF
   set -e
@@ -113,11 +137,11 @@ dockerfile: |-
   cd terraform
   terraform init -backend=false
   EOF
-
+  
   # These env vars shall be set as environment variables within the Qovery console
   # JOB_INPUT should contains a terraform vars file to customize your job
   ENV JOB_INPUT=must-be-set-as-env-var-file
-
+  
   ENTRYPOINT ["/usr/bin/dumb-init", "-v", "--", "/data/entrypoint.sh"]
   CMD ["start"]
 
