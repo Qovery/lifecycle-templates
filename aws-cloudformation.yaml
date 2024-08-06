@@ -16,7 +16,6 @@ resources:
   cpu_milli: 500
   ram_mib: 512
 max_duration_in_minutes: 30
-max_duration_in_sec: 1800
 variables:
   - name: AWS_DEFAULT_REGION
     is_secret: false
