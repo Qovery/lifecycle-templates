@@ -15,7 +15,7 @@ events:
 resources:
   cpu_milli: 500
   ram_mib: 512
-max_duration_in_sec: 1800
+max_duration_in_minutes: 30
 variables:
   - name: JOB_INPUT
     is_secret: true
