@@ -38,6 +38,7 @@ variables:
     description: "The Cloudformation template input necessary for its execution"
     file: 
       path: "/data/cloudformation/input.json"
+      enable_interpolation: true
     default: |-
       {
         "Parameters": {
