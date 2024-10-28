@@ -17,24 +17,24 @@ resources:
   ram_mib: 512
 max_duration_in_minutes: 30
 variables:
-  - name: JOB_INPUT
-    is_secret: true
-    description: "The terraform variable that will be injected"
+  - name: TF_VAR
+    is_secret: false
+    description: "The terraform tf_var content that will be used during the execution. Store secrets as separate environment variables and use the interpolation."
     file: 
       path: "/data/terraform/terraform.tfvars"
       enable_interpolation: true
     default: |-
-      bucket_name="qovery-{{QOVERY_JOB_NAME}}"
+      variable1="qovery-{{QOVERY_JOB_NAME}}"
 dockerfile: |-
   # The following Dockerfile has been designed to package and run your Terraform manifest with the following constraints:
   #   - TF version 1.8.5
   #   - use Kubernetes as backend
   #   - cloud provider agnostic: you will have to properly configure the authentication to manage your resources
-  #   - we expect the TF_VARs to be declared within an environment variable named "JOB_INPUT" (of type file)
+  #   - we expect the TF_VARs to be declared within an environment variable named "TF_VAR" (of type file)
   # All the points above can be customized in the corresponding line within this Dockerfile 
   
   # you can change the TF version here
-  FROM hashicorp/terraform:1.8.5
+  FROM hashicorp/terraform:1.9
   
   # downloading dependencies and initializing working dir
   RUN <<EOF
@@ -88,7 +88,7 @@ dockerfile: |-
   # This is the command to manage the creation and update of a resource
   echo 'start command invoked'
   echo 'Running Terraform PLAN'
-  terraform plan -input=false -out=tf.plan -var-file=\$JOB_INPUT
+  terraform plan -input=false -out=tf.plan -var-file=\$TF_VAR
   echo 'Running Terraform APPLY with auto-approve'
   terraform apply -input=false -auto-approve tf.plan
   echo 'Writing the TF output and injecting it as Qovery environment variables for downstream usage.'
@@ -104,7 +104,7 @@ dockerfile: |-
   delete)
   echo 'delete command invoked'
   echo 'Running Terraform PLAN'
-  terraform plan -destroy -out=tf.plan -input=false -var-file=\$JOB_INPUT
+  terraform plan -destroy -out=tf.plan -input=false -var-file=\$TF_VAR
   echo 'Running Terraform DESTROY with auto-approve'
   terraform apply -destroy -auto-approve -input=false tf.plan
   ;;
@@ -140,8 +140,8 @@ dockerfile: |-
   EOF
   
   # These env vars shall be set as environment variables within the Qovery console
-  # JOB_INPUT should contains a terraform vars file to customize your job
-  ENV JOB_INPUT=must-be-set-as-env-var-file
+  # TF_VAR should contains a terraform vars file to customize your job
+  ENV TF_VAR=must-be-set-as-env-var-file
   
   ENTRYPOINT ["/usr/bin/dumb-init", "-v", "--", "/data/entrypoint.sh"]
   CMD ["start"]

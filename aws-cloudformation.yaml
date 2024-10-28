@@ -35,7 +35,7 @@ variables:
     description: "The name of the Cloudformation template to deploy"
   - name: CF_TEMPLATE_INPUT
     is_secret: false
-    description: "The Cloudformation template input necessary for its execution"
+    description: "The Cloudformation template input necessary for its execution. Store secrets as separate environment variables and use the interpolation."
     file: 
       path: "/data/cloudformation/input.json"
       enable_interpolation: true
