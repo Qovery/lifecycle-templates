@@ -80,7 +80,7 @@ dockerfile: |-
   terraform init -backend-config="secret_suffix=qovery-\${QOVERY_JOB_ID}" -backend-config="namespace=\${QOVERY_KUBERNETES_NAMESPACE_NAME}"
   
   # example of initialization with other backend types
-  # S3:  terraform init -backend-config="key=qovery-\${QOVERY_JOB_ID}" -backend-config="bucket=${TERRAFORM_BACKEND_BUCKET}" -backend-config="region=${AWS_REGION}"
+  # S3:  terraform init -backend-config="key=qovery-\${QOVERY_JOB_ID}" -backend-config="bucket=\${TERRAFORM_BACKEND_BUCKET}" -backend-config="region=\${AWS_REGION}"
   ############################################################
   
   case "\$CMD" in
