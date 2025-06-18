@@ -52,20 +52,41 @@ dockerfile: |-
   #   - template name is specified via the environment variable CF_TEMPLATE_NAME
   #   - it uses the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for authentication. Modify the command to use a different authentication method (STS)
   #   - we expect the parameters to be declared within an environment variable named "CF_TEMPLATE_INPUT" (of type file)
-  # All the points above can be customized in the corresponding line within this Dockerfile 
-  FROM alpine:3.20.0
-  
+  # All the points above can be customized in the corresponding line within this Dockerfile
+  FROM debian:12-slim
+
   # downloading dependencies and initializing working dir
   RUN <<EOF
   set -e
-  apk update
-  apk add dumb-init
-  # you can change the Cloudformation version here
-  apk add 'aws-cli>2.16' --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community
-  apk add jq
-  adduser -D app
+  apt-get update
+  apt-get install -y --no-install-recommends \
+      dumb-init \
+      curl \
+      unzip \
+      jq \
+      ca-certificates
+  # Install AWS CLI v2 official binary with architecture detection
+  ARCH=$(dpkg --print-architecture)
+  case "$ARCH" in
+    amd64) AWS_CLI_ARCH="x86_64" ;;
+    arm64) AWS_CLI_ARCH="aarch64" ;;
+    *) echo "Unsupported architecture: $ARCH" && exit 1 ;;
+  esac
+  echo "Installing AWS CLI for architecture: $AWS_CLI_ARCH"
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_CLI_ARCH}.zip" -o "awscliv2.zip"
+  unzip -q awscliv2.zip
+  ./aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli
+  # Cleanup installation files
+  rm -rf awscliv2.zip aws
+  # Verify AWS CLI version is > 2.16
+  aws --version
+  # Create app user and working directory
+  useradd --create-home --shell /bin/bash app
   mkdir /data
   chown -R app:app /data
+  # Clean up apt cache to reduce image size
+  apt-get clean
+  rm -rf /var/lib/apt/lists/*
   EOF
   
   WORKDIR /data
